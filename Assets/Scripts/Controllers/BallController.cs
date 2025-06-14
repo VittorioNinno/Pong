@@ -7,6 +7,8 @@ public class BallController : MonoBehaviour
 	[Header("Ball Properties")]
 	[Tooltip("The initial speed of the ball when launched.")]
 	public float startSpeed = 7f;
+	[Tooltip("The maximum speed the ball can reach.")]
+	public float maxSpeed = 25f;
 	[Tooltip("The minimum vertical velocity to prevent horizontal locks")]
 	public float minVerticalVelocity = 0.5f;
 	[Tooltip("The minimum horizontal velocity to prevent vertical locks.")]
@@ -14,10 +16,15 @@ public class BallController : MonoBehaviour
 
 	[Header("Effects")]
 	[Tooltip("Speed required for the trail to become visible")]
-	public float trailSpeedThreshold = 10f;
+	public float trailSpeedThreshold = 12f;
+
+	[Header("Safety Nets")]
+	[Tooltip("If the ball's position exceeds this value on any axis, it will be reset.")]
+	public float outOfBoundsThreshold = 15f;
 
 	private Rigidbody2D rb;
 	private TrailRenderer trail;
+	private bool isResetting = false;
 
 	///	<summary>
 	///	Initializes the component and launches the ball after a short delay.
@@ -44,7 +51,22 @@ public class BallController : MonoBehaviour
 	///	</summary>
 	private void Update()
 	{
-		if(trail == null)
+		//	If the ball is way outside the play area and not already resetting, trigger a reset.
+		if (!isResetting && (Mathf.Abs(transform.position.x) > outOfBoundsThreshold || Mathf.Abs(transform.position.y) > outOfBoundsThreshold))
+		{
+			//	Call the GameManager to handle the reset without awarding points.
+			if (GameManager.Instance != null)
+			{
+				GameManager.Instance.PlayerScored(0);
+			}
+			else
+			{
+				//	Fallback in case the GameManager is not present.
+				ResetBall();
+			}
+		}
+
+		if (trail == null)
 		{
 			return;
 		}
@@ -78,7 +100,10 @@ public class BallController : MonoBehaviour
 	///	</summary>
 	public async void ResetBall()
 	{
-		//	Stop the ball and move it back to the center
+		//	Flag that a reset is in progress to prevent multiple calls.
+		isResetting = true;
+
+		//	Stop and center the ball.
 		rb.linearVelocity = Vector2.zero;
 		transform.position = Vector2.zero;
 
@@ -86,8 +111,12 @@ public class BallController : MonoBehaviour
 
 		//	Reactivate the GameObject before launching again.
 		gameObject.SetActive(true);
+		
 		//	After the delay, call the common launch method.
 		LaunchBall();
+
+		//	Flag that the reset process is complete.
+		isResetting = false;
 	}
 
 	///	<summary>
@@ -105,6 +134,12 @@ public class BallController : MonoBehaviour
 			}
 
 			rb.linearVelocity *= 1.05f;
+
+			//	Max Speed Check
+			if (rb.linearVelocity.magnitude > maxSpeed)
+			{
+				rb.linearVelocity = rb.linearVelocity.normalized * maxSpeed;
+			}
 		}
 		else if (collision.gameObject.CompareTag("Wall"))
 		{
@@ -114,7 +149,7 @@ public class BallController : MonoBehaviour
 			}
 		}
 
-		//	--- Safety checks to prevent locks ---
+		//	Safety checks to prevent locks
 		Vector2 currentVelocity = rb.linearVelocity;
 		float randomNudge = UnityEngine.Random.Range(0, 2) == 0 ? 1f : -1f;
 

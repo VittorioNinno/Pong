@@ -1,12 +1,15 @@
 using Cysharp.Threading.Tasks;
-using JetBrains.Annotations;
 using TMPro;
-using Unity.VisualScripting;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class GameManager : MonoBehaviour
 {
+	[Header("Game Rules")]
+	[Tooltip("The score a player needs to reach to win the match.")]
+	public int scoreToWin = 5;
+
 	[Header("Game Objects")]
 	[Tooltip("A reference to the BallController script.")]
 	public BallController ball;
@@ -18,6 +21,10 @@ public class GameManager : MonoBehaviour
 	public TextMeshProUGUI scoreTextPlayer1;
 	[Tooltip("The TextMeshPro UI element for Player 2's score.")]
 	public TextMeshProUGUI scoreTextPlayer2;
+	[Tooltip("The panel that appears when the game is over.")]
+	public GameObject gameOverPanel;
+	[Tooltip("The text element that displays the winner.")]
+	public TextMeshProUGUI winnerText;
 
 	[Header("Effects")]
 	[Tooltip("The particle effect prefab to spawn when the goal is scored.")]
@@ -50,6 +57,16 @@ public class GameManager : MonoBehaviour
 		SetupGameMode();
 	}
 
+
+	///	<summary>
+	///	Called once at the start to initialize UI.
+	///	</summary>
+	private void Start()
+	{
+		//	Initialize the UI with the starting scores.
+		UpdateScoreUI();
+	}
+
 	///	<summary>
 	///	Configures the game based on the mode selected in the main menu.
 	///	</summary>
@@ -77,54 +94,45 @@ public class GameManager : MonoBehaviour
 	}
 
 	///	<summary>
-	///	Called once at the start to initialize UI.
-	///	</summary>
-	private void Start()
-	{
-		//	Initialize the UI with the starting scores.
-		UpdateScoreUI();
-	}
-
-	///	<summary>
 	///	Called by a GoalZone when a player scores.
 	///	</summary>
 	///	<param name="playerID"></param>
 	public void PlayerScored(int playerID)
 	{
-		if(SoundManager.Instance != null)
+		if(playerID != 0)
 		{
-			SoundManager.Instance.PlaySound(SoundManager.Instance.goalSound);
-		}
+			if(SoundManager.Instance != null)
+			{
+				SoundManager.Instance.PlaySound(SoundManager.Instance.goalSound);
+			}
 
-		if (playerID == 1)
-		{
-			scorePlayer1++;
-		}
-		else if (playerID == 2)
-		{
-			scorePlayer2++;
-		}
+			if (playerID == 1)
+			{
+				scorePlayer1++;
+			}
+			else if (playerID == 2)
+			{
+				scorePlayer2++;
+			}
 
-		//	Update the visual score on the screen
-		UpdateScoreUI();
+			UpdateScoreUI();
 
-		//	--- TRIGGER EFFECTS ---
-		//	Istantiate the explosion at the ball's position
-		if (goalExplosionPrefab != null)
-		{
-			Instantiate(goalExplosionPrefab, ball.transform.position, Quaternion.identity);
+			//	Check for a winner
+			if (scorePlayer1 >= scoreToWin)
+			{
+				EndGame(1);
+			}
+			else if (scorePlayer2 >= scoreToWin)
+			{
+				EndGame(2);
+			}
+			else
+			{
+				//	If no one has won yet, reset the round
+				TriggerRoundEffects();
+				ball.ResetBall();
+			}
 		}
-
-		//	Trigger the screen shake effect
-		if (mainCameraScreenShake != null)
-		{
-			//	We call the async method
-			mainCameraScreenShake.Shake(0.15f, 0.2f).Forget();
-		}
-
-		//	Deactivate the ball to hide it. ResetBall will reactivate it.
-		ball.gameObject.SetActive(false);
-		ball.ResetBall();
 	}
 
 	///	<summary>
@@ -134,5 +142,69 @@ public class GameManager : MonoBehaviour
 	{
 		scoreTextPlayer1.text = scorePlayer1.ToString();
 		scoreTextPlayer2.text = scorePlayer2.ToString();
+	}
+
+	///	<summary>
+	///	Triggers all visual and audio effects for a scored point.
+	///	</summary>
+	private void TriggerRoundEffects()
+	{
+		if (goalExplosionPrefab != null)
+		{
+			Instantiate(goalExplosionPrefab, ball.transform.position, Quaternion.identity);
+		}
+
+		if (mainCameraScreenShake != null)
+		{
+			mainCameraScreenShake.Shake(0.15f, 0.2f).Forget();
+		}
+
+		ball.gameObject.SetActive(false);
+	}
+
+	///	<summary>
+	///	Handles the end of the game state by showing the game over panel and freezing time.
+	///	</summary>
+	///	<param name="winnerID">The ID of the player who won.</param>
+	private void EndGame(int winnerID)
+	{
+		winnerText.text = $"PLAYER {winnerID} WINS!";
+		gameOverPanel.SetActive(true);
+
+		//	Freeze the game by stopping time.
+		Time.timeScale = 0f;
+	}
+
+	///	<summary>
+	///	Called by the 'Restart' button on the GameOver panel.
+	///	</summary>
+	public void OnRestartButtonClicked()
+	{
+		//	Play UI click sound
+		if (SoundManager.Instance != null)
+		{
+			SoundManager.Instance.PlaySound(SoundManager.Instance.uiClickSound);
+		}
+
+		//	Unfreeze the game before reloading the scene.
+		Time.timeScale = 1f;
+
+		//	Reload the current scene.
+		SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+	}
+
+	///	<summary>
+	///	Called by the 'Main Menu' button on the GameOver panel.
+	///	</summary>
+	public void OnMainMenuButtonClicked()
+	{
+		//	Play UI click sound
+		if (SoundManager.Instance != null)
+		{
+			SoundManager.Instance.PlaySound(SoundManager.Instance.uiClickSound);
+		}
+
+		//	Unfreeze the game before loading the main menu.
+		Time.timeScale = 1f;
 	}
 }

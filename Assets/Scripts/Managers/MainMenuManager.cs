@@ -59,9 +59,6 @@ public class MainMenuManager : MonoBehaviour
 	{
 		// Set the game mode in our static data holder
 		GameData.currentGameMode = GameData.GameMode.PlayerVsPlayer;
-
-		// Load the game scene
-		SceneManager.LoadScene("Game_Scene");
 	}
 
 	///	<summary>
@@ -71,8 +68,13 @@ public class MainMenuManager : MonoBehaviour
 	{
 		//	Set the game mode in our static data holder
 		GameData.currentGameMode = GameData.GameMode.PlayerVsCpu;
+	}
 
-		//	Load the game scene
-		SceneManager.LoadScene("Game_Scene");
+	public void OnButtonClicked()
+	{
+		if(SoundManager.Instance != null)
+		{
+			SoundManager.Instance.PlaySound(SoundManager.Instance.uiClickSound);
+		}
 	}
 }
